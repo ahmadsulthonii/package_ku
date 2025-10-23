@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ExportExcelPackage extends StatefulWidget {
   const ExportExcelPackage({super.key});
@@ -41,7 +42,7 @@ class _ExportExcelPackageState extends State<ExportExcelPackage> {
   ];
 
   bool isExporting = false;
-  String? exportedFilePath; // simpan path hasil ekspor
+  String? exportedFilePath;
 
   CellValue? _toCellValue(dynamic v) {
     if (v == null) return null;
@@ -58,6 +59,27 @@ class _ExportExcelPackageState extends State<ExportExcelPackage> {
     return TextCellValue(v.toString());
   }
 
+  Future<Directory> _getSafeDirectory() async {
+    if (Platform.isAndroid) {
+      // Coba dapatkan folder dokumen internal app
+      final dir = await getApplicationDocumentsDirectory();
+      // return dir;
+
+      // Jika kamu tetap mau simpan ke "Download", uncomment kode di bawah:
+
+      if (await Permission.manageExternalStorage.request().isGranted ||
+          await Permission.storage.request().isGranted) {
+        final downloadDir = Directory('/storage/emulated/0/Download');
+        if (await downloadDir.exists()) return downloadDir;
+      }
+      return await getApplicationDocumentsDirectory();
+    } else if (Platform.isIOS) {
+      return await getApplicationDocumentsDirectory();
+    } else {
+      return await getApplicationDocumentsDirectory();
+    }
+  }
+
   Future<void> exportJsonToExcel() async {
     try {
       setState(() {
@@ -69,7 +91,7 @@ class _ExportExcelPackageState extends State<ExportExcelPackage> {
       const String sheetName = "Data";
       final Sheet sheet = excel[sheetName];
 
-      // Ambil semua key unik
+      // Ambil semua key unik dari data
       final allKeys = <String>{};
       for (var item in jsonData) {
         allKeys.addAll(flattenJson(item).keys);
@@ -92,8 +114,13 @@ class _ExportExcelPackageState extends State<ExportExcelPackage> {
       final fileBytes = excel.encode();
       if (fileBytes == null) throw Exception("Gagal encode Excel");
 
-      final dir = await getApplicationDocumentsDirectory();
-      final path = "${dir.path}/data_export.xlsx";
+      // Dapatkan direktori yang aman
+      final dir = await _getSafeDirectory();
+
+      // Gunakan timestamp agar tidak overwrite file lama
+      final fileName =
+          "data_export_${DateTime.now().millisecondsSinceEpoch}.xlsx";
+      final path = "${dir.path}/$fileName";
 
       final file = File(path)
         ..createSync(recursive: true)
@@ -107,7 +134,7 @@ class _ExportExcelPackageState extends State<ExportExcelPackage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("✅ Berhasil disimpan di: $path")));
+      ).showSnackBar(SnackBar(content: Text("✅ File disimpan di: $path")));
     } catch (e) {
       setState(() => isExporting = false);
       ScaffoldMessenger.of(
@@ -136,7 +163,12 @@ class _ExportExcelPackageState extends State<ExportExcelPackage> {
 
   Future<void> openExportedFile() async {
     if (exportedFilePath == null) return;
-    await OpenFilex.open(exportedFilePath!);
+    final result = await OpenFilex.open(exportedFilePath!);
+    if (result.type != ResultType.done) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Gagal membuka file: ${result.message}")),
+      );
+    }
   }
 
   @override
