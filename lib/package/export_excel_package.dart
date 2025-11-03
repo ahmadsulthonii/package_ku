@@ -115,11 +115,12 @@ class _ExportExcelPackageState extends State<ExportExcelPackage> {
 
       if (Platform.isAndroid) {
         // === Android: pilih folder dulu ===
-        final folderPath = await _pickFolderPath();
+        // final folderPath = await _pickFolderPath();
+        final folderPath = await getDownloadsDirectory();
         if (folderPath == null) {
           throw Exception("Penyimpanan dibatalkan user");
         }
-        savePath = "$folderPath/$fileName";
+        savePath = "${folderPath.path}/package_ku/data_export.xlsx";
         File(savePath)
           ..createSync(recursive: true)
           ..writeAsBytesSync(fileBytes, flush: true);
