@@ -111,19 +111,25 @@ class _ExportExcelPackageState extends State<ExportExcelPackage> {
       final fileName =
           "data_export_${DateTime.now().millisecondsSinceEpoch}.xlsx";
 
+      // Tentukan direktori sesuai platform
+      Directory? downloadDir;
       String? savePath;
 
       if (Platform.isAndroid) {
-        // === Android: pilih folder dulu ===
-        // final folderPath = await _pickFolderPath();
-        final folderPath = await getDownloadsDirectory();
-        if (folderPath == null) {
-          throw Exception("Penyimpanan dibatalkan user");
+        downloadDir = await getDownloadsDirectory();
+
+        if (downloadDir != null) {
+          downloadDir = Directory('/storage/emulated/0/Download/piesa');
+        } else {
+          downloadDir = Directory("${downloadDir!.path}/piesa");
         }
-        savePath = "${folderPath.path}/package_ku/data_export.xlsx";
-        File(savePath)
-          ..createSync(recursive: true)
-          ..writeAsBytesSync(fileBytes, flush: true);
+        // Pastikan folder tersedia
+        if (!await downloadDir.exists()) {
+          await downloadDir.create(recursive: true);
+        }
+        savePath = "${downloadDir.path}/$fileName";
+        final file = File(savePath);
+        await file.writeAsBytes(fileBytes, flush: true);
       } else if (Platform.isIOS) {
         // === iOS: gunakan FileSaver (dialog Save As bawaan sistem) ===
         await FileSaver.instance.saveFile(
